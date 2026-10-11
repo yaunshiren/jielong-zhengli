@@ -1,4 +1,4 @@
-name: Deploy Jielong Tool to GitHub Pages
+name: Test and deploy Jielong Tool
 on:
   push:
     branches: [main]
@@ -11,7 +11,17 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Smoke-test parser and site files
+        run: node tests/smoke.cjs
   deploy:
+    needs: test
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
