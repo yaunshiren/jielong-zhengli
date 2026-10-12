@@ -24,7 +24,7 @@ assert.equal(core.extractStatus('已取消'),'canceled');
 assert.equal(core.extractCount('小王+2'),3);
 assert.throws(()=>core.parse('x'.repeat(350001)),/过长/);
 const raw=core.parse('1. =2+2').people;
-assert(core.asCsv(raw).includes("'=2+2"),'Prevent spreadsheet formula execution');
+assert(core.asCsv(raw).includes("'=2"),'Prevent spreadsheet formula execution even when the plus sign is parsed as a participant suffix');
 assert(!core.asCsv(core.parse('1. 小王 取消报名').people).includes('小王'));
 for(const p of ['guide.html','sitemap.xml']) assert(fs.existsSync(p),p+' missing');
 assert(html.includes('https://yaunshiren.github.io/jielong-zhengli/'));
