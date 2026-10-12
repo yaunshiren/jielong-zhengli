@@ -1,4 +1,4 @@
-name: Test and deploy Jielong Tool
+name: Test, deploy and verify Jielong Tool
 on:
   push:
     branches: [main]
@@ -18,8 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Smoke-test parser and site files
-        run: node tests/smoke.cjs
+      - name: Test parsing, exports and site files
+        run: |
+          node tests/smoke.cjs
+          node tests/edge_cases.cjs
   deploy:
     needs: test
     environment:
@@ -34,3 +36,28 @@ jobs:
           path: "."
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify public HTTP pages after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://yaunshiren.github.io/jielong-zhengli/"
+          for page in "" "guide.html" "sitemap.xml" "C0BC97DF1320036DD1A87E4CF81385EE.txt"; do
+            url="${base}${page}"
+            status=$(curl --silent --show-error --location --retry 6 --retry-delay 5 --retry-all-errors --max-time 20 --output "$RUNNER_TEMP/site-body" --write-out '%{http_code}' "$url")
+            echo "${url} → HTTP ${status}"
+            if [ "$status" != "200" ]; then echo "::error::Public page not available: ${url}"; exit 1; fi
+            if [ -z "$page" ]; then grep -q "微信接龙转 Excel" "$RUNNER_TEMP/site-body" || { echo "::error::Homepage content missing"; exit 1; }; fi
+            if [ "$page" = "guide.html" ]; then grep -q "微信群接龙如何整理成 Excel" "$RUNNER_TEMP/site-body" || { echo "::error::Guide content missing"; exit 1; }; fi
+          done
+      - name: Notify IndexNow of current pages (best effort)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="C0BC97DF1320036DD1A87E4CF81385EE"
+          key_url="https://yaunshiren.github.io/jielong-zhengli/${key}.txt"
+          for page in "https://yaunshiren.github.io/jielong-zhengli/" "https://yaunshiren.github.io/jielong-zhengli/guide.html"; do
+            http=$(curl --silent --show-error --location --max-time 25 --output "$RUNNER_TEMP/indexnow-body" --write-out '%{http_code}' --get --data-urlencode "url=${page}" --data-urlencode "key=${key}" --data-urlencode "keyLocation=${key_url}" "https://api.indexnow.org/indexnow")
+            echo "IndexNow ${page} → HTTP ${http} (200/202 accepted; does not guarantee indexing)"
+            if [ "$http" != "200" ] && [ "$http" != "202" ]; then echo "::warning::IndexNow did not accept this submission"; exit 1; fi
+          done
